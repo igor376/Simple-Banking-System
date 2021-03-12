@@ -11,10 +11,11 @@ class Bank:
         self.current_pin = 0
 
     def create_account(self):
-        card_number = int("400000{}1".format(random.randint(100_000_000, 999_999_999)))
+        while not self.create_card_number():
+            pass
         # {card_number:{pin:1234, balance:0}}
-        self.accounts[card_number] = {"pin": random.randint(1000, 9999), "balance": 0}
-        self.print_massage(1, card_number)
+        self.accounts[self.current_card_number] = {"pin": random.randint(1000, 9999), "balance": 0}
+        self.print_massage(1, self.current_card_number)
 
     def print_massage(self, option=0, card_number=0):
         if option == 0 and self.state == 0:
@@ -59,7 +60,7 @@ class Bank:
             self.log_into_account()
             return True
         elif self.state == 2:
-            self.current_card_number = int(command)
+            self.current_card_number = command
             self.state = 21
             self.log_into_account()
             return True
@@ -84,6 +85,24 @@ class Bank:
         elif command == "0":
             print("Bye!")
             return False
+
+    def create_card_number(self):
+        account_identifier = random.randint(100_000_000, 999_999_999)
+        self.current_card_number = "400000{}{}".format(account_identifier,
+                                                       self.luhn_algorithm("400000", account_identifier))
+        return not (self.current_card_number in self.accounts)
+
+    def luhn_algorithm(self, bank_identifier_number, account_identifier):
+        card_number = list(bank_identifier_number + str(account_identifier))
+        for i in range(0, len(card_number), 2):
+            card_number[i] = int(card_number[i]) * 2
+            if card_number[i] > 9:
+                card_number[i] -= 9
+        sum_digits = 0
+        for i in range(len(card_number)):
+            card_number[i] = int(card_number[i])
+            sum_digits += card_number[i]
+        return str(10 - sum_digits % 10)
 
 
 bank = Bank()
