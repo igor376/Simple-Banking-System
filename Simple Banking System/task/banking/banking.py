@@ -1,4 +1,5 @@
 import random
+import sqlite3
 
 
 class Bank:
@@ -6,16 +7,42 @@ class Bank:
         # 0 - main menu, 2 - Log into account
         self.state = 0
         self.accounts = {}
+        self.amount_of_users = 0
         self.print_massage()
         self.current_card_number = 0
         self.current_pin = 0
+        self.connection = sqlite3.connect("card.s3db")
+        self.cursor = self.connection.cursor()
+        # try:
+        #     self.cursor.execute("DROP TABLE card;")
+        # except:
+        #     pass
+        try:
+            for row in self.cursor.execute("select number, pin, balance from card;"):
+                self.accounts[row[0]] = {"pin": int(row[1]), "balance": int(row[2])}
+        except sqlite3.OperationalError:
+            self.cursor.execute("""CREATE TABLE card(
+            id Integer,
+            number TEXT,
+            pin TEXT,
+            balance Integer default 0
+            );""")
 
     def create_account(self):
         while not self.create_card_number():
             pass
         # {card_number:{pin:1234, balance:0}}
-        self.accounts[self.current_card_number] = {"pin": random.randint(1000, 9999), "balance": 0}
+        pin = random.randint(1000, 9999)
+        self.accounts[self.current_card_number] = {"pin": pin, "balance": 0}
+        self.amount_of_users += 1
+        self.adding_into_bd(self.current_card_number, pin, 0)
         self.print_massage(1, self.current_card_number)
+
+    def adding_into_bd(self, card_number, pin, balance):
+        self.cursor.execute(
+            "INSERT INTO card VALUES ({},{},{},{});".format(self.amount_of_users, card_number, pin, balance))
+        # self.cursor.execute("select * from card;")
+        # print(self.cursor.fetchone())
 
     def print_massage(self, option=0, card_number=0):
         if option == 0 and self.state == 0:
@@ -80,11 +107,16 @@ class Bank:
                 self.print_massage()
                 return True
             elif command == "0":
-                print("Bye!")
+                self.ending_programm()
                 return False
         elif command == "0":
-            print("Bye!")
+            self.ending_programm()
             return False
+
+    def ending_programm(self):
+        print("Bye!")
+        self.connection.commit()
+        self.connection.close()
 
     def create_card_number(self):
         account_identifier = random.randint(100_000_000, 999_999_999)
@@ -102,10 +134,11 @@ class Bank:
         for i in range(len(card_number)):
             card_number[i] = int(card_number[i])
             sum_digits += card_number[i]
-        return str(10 - sum_digits % 10)
+        return str((10 - sum_digits % 10) % 10)
 
 
 bank = Bank()
+
 # bank.accounts = {1: {"pin": 1, "balance": 0}}
 while bank.terminal(input()):
     pass
