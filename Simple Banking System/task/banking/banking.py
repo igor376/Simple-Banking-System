@@ -10,6 +10,7 @@ class Bank:
         self.amount_of_users = 0
         self.print_massage()
         self.current_card_number = 0
+        self.second_card_number = 0
         self.current_pin = 0
         self.connection = sqlite3.connect("card.s3db")
         self.cursor = self.connection.cursor()
@@ -41,6 +42,7 @@ class Bank:
     def adding_into_bd(self, card_number, pin, balance):
         self.cursor.execute(
             "INSERT INTO card VALUES ({},{},{},{});".format(self.amount_of_users, card_number, pin, balance))
+        self.connection.commit()
         # self.cursor.execute("select * from card;")
         # print(self.cursor.fetchone())
 
@@ -59,7 +61,7 @@ class Bank:
         elif self.state == 22:
             print("\nYou have successfully logged in!\n")
         elif self.state == 3:
-            print("1. Balance\n2. Log out\n0. Exit")
+            print("1. Balance\n2. Add income\n3. Do transfer\n4. Close account\n5. Log out\n0. Exit")
 
     def log_into_account(self):
         if self.state == 2:
@@ -96,24 +98,101 @@ class Bank:
             self.state = 22
             self.log_into_account()
             return True
-        elif self.state == 3:
+        elif self.state == 3:  # Account menu
             if command == "1":
                 print("\nBalance: {}\n".format(self.accounts[self.current_card_number]["balance"]))
                 self.print_massage()
                 return True
             elif command == "2":
+                self.state = 32
+                print("\nEnter income:")
+                return True
+            elif command == "3":
+                self.state = 33
+                print("\nTransfer\nEnter card number:")
+                return True
+            elif command == "4":
+                self.close_account()
+                print("\nThe account has been closed!\n")
+                self.state = 0
+                self.print_massage()
+                return True
+            elif command == "5":
                 print("\nYou have successfully logged out!\n")
                 self.state = 0
                 self.print_massage()
                 return True
             elif command == "0":
-                self.ending_programm()
+                self.ending_program()
                 return False
+        elif self.state == 32:
+            self.update_card_balance(int(command), self.current_card_number)
+            print("Income was added!\n")
+            self.state = 3
+            self.print_massage()
+            return True
+        elif self.state == 33:
+            if self.transfer(command):
+                self.state = 34
+                self.second_card_number = command
+                print("Enter how much money you want to transfer:")
+            else:
+                self.state = 3
+            return True
+        elif self.state == 34:
+            self.transfer(command)
+            self.state = 3
+            self.print_massage()
+            return True
         elif command == "0":
-            self.ending_programm()
+            self.ending_program()
             return False
+        self.ending_program()
+        return False
 
-    def ending_programm(self):
+    def close_account(self):
+        self.cursor.execute("DELETE FROM card WHERE number = {};".format(self.current_card_number))
+        del self.accounts[self.current_card_number]
+        self.connection.commit()
+
+    def update_card_balance(self, balance, card_number):
+        self.accounts[card_number]["balance"] += balance
+        self.cursor.execute(
+            "UPDATE card SET balance={} WHERE number = {};".format(self.accounts[card_number]["balance"], card_number))
+        self.connection.commit()
+
+    def transfer(self, money_or_card):
+        if self.state == 33:
+            if money_or_card != self.current_card_number:
+                if money_or_card[-1] == self.luhn_algorithm(0, 0, money_or_card[:-1]):
+                    if self.check_card_in_db(money_or_card):
+                        return True
+                    else:
+                        print("Such a card does not exist.\n")
+                        self.state = 3
+                        self.print_massage()
+                else:
+                    print("Probably you made a mistake in the card number. Please try again!\n")
+                    self.state = 3
+                    self.print_massage()
+            else:
+                print("You can't transfer money to the same account!\n")
+                self.state = 3
+                self.print_massage()
+        if self.state == 34:
+            if self.accounts[self.current_card_number]["balance"] >= int(money_or_card):
+                self.update_card_balance(int(money_or_card), self.second_card_number)
+                self.update_card_balance(-int(money_or_card), self.current_card_number)
+                print("Success!\n")
+            else:
+                print("Not enough money!\n")
+                self.print_massage()
+
+    def check_card_in_db(self, card):
+        self.cursor.execute("SELECT * FROM card WHERE number = {};".format(card))
+        return self.cursor.fetchone() is not None
+
+    def ending_program(self):
         print("Bye!")
         self.connection.commit()
         self.connection.close()
@@ -124,8 +203,11 @@ class Bank:
                                                        self.luhn_algorithm("400000", account_identifier))
         return not (self.current_card_number in self.accounts)
 
-    def luhn_algorithm(self, bank_identifier_number, account_identifier):
-        card_number = list(bank_identifier_number + str(account_identifier))
+    def luhn_algorithm(self, bank_identifier_number, account_identifier, card_number=""):
+        if card_number == "":
+            card_number = list(bank_identifier_number + str(account_identifier))
+        else:
+            card_number = list(card_number)
         for i in range(0, len(card_number), 2):
             card_number[i] = int(card_number[i]) * 2
             if card_number[i] > 9:
@@ -138,7 +220,10 @@ class Bank:
 
 
 bank = Bank()
-
+# print(bank.luhn_algorithm(0, 0, "400000894391923"))
+# bank.cursor.execute("SELECT * FROM card WHERE number = {};".format("14000009224965429"))
+# print(bank.cursor.fetchone())
+# print(bank.cursor.rowcount)
 # bank.accounts = {1: {"pin": 1, "balance": 0}}
 while bank.terminal(input()):
     pass
